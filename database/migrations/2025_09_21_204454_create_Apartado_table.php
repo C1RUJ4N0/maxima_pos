@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('apartados', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('client_id')->constrained()->onDelete('cascade');
-            $table->decimal('total_amount', 10, 2);
-            $table->decimal('amount_paid', 10, 2);
-            $table->date('due_date');
-            $table->string('status')->default('vigente');
+            $table->foreignId('cliente_id')->constrained('clientes')->onDelete('cascade'); // 'client_id' -> 'cliente_id' y referencia a 'clientes'
+            $table->decimal('monto_total', 10, 2); // 'total_amount' -> 'monto_total'
+            $table->decimal('monto_pagado', 10, 2)->default(0); // 'amount_paid' -> 'monto_pagado'
+            $table->date('fecha_vencimiento'); // 'due_date' -> 'fecha_vencimiento'
+            $table->string('estado')->default('vigente'); // 'status' -> 'estado'
             $table->timestamps();
         });
     }

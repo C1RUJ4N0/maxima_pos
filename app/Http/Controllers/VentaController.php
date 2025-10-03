@@ -16,7 +16,7 @@ use Carbon\Carbon;
 
 class VentaController extends Controller
 {
-    public function getDashboardData()
+    public function obtenerDatosPanel()
     {
         try {
             $productos = Producto::all();
@@ -27,41 +27,48 @@ class VentaController extends Controller
                 'clientes' => $clientes
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching dashboard data: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al obtener los datos.', 'error' => $e->getMessage()], 500);
+            Log::error('Error al obtener datos del panel: ' . $e->getMessage());
+            return response()->json(['mensaje' => 'Error al obtener los datos.', 'error' => $e->getMessage()], 500);
         }
     }
 
-    public function storeProducto(Request $request)
+    public function almacenarProducto(Request $request)
     {
         try {
             DB::beginTransaction();
+            // VALIDACIÓN ORIGINAL (se mantiene 'existencias' como campo del modelo)
             $request->validate([
                 'nombre' => 'required|string|max:255',
                 'precio' => 'required|numeric|min:0',
-                'stock' => 'required|integer|min:0',
+                'existencias' => 'required|integer|min:0',
                 'descripcion' => 'nullable|string',
             ]);
 
-            $producto = Producto::create($request->all());
+            // AJUSTE: Si el frontend envía 'stock', lo mapeamos a 'existencias' (campo del modelo).
+            $data = $request->all();
+            if (isset($data['stock'])) {
+                $data['existencias'] = $data['stock'];
+                unset($data['stock']);
+            }
+            $producto = Producto::create($data);
 
             DB::commit();
-            return response()->json(['message' => 'Producto creado con éxito.', 'producto' => $producto], 201);
+            return response()->json(['mensaje' => 'Producto creado con éxito.', 'producto' => $producto], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating product: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al crear el producto.', 'error' => $e->getMessage()], 500);
+            Log::error('Error al crear producto: ' . $e->getMessage());
+            return response()->json(['mensaje' => 'Error al crear el producto.', 'error' => $e->getMessage()], 500);
         }
     }
 
-    public function updateProducto(Request $request, $id)
+    public function actualizarProducto(Request $request, $id)
     {
         try {
             DB::beginTransaction();
             $request->validate([
                 'nombre' => 'required|string|max:255',
                 'precio' => 'required|numeric|min:0',
-                'stock' => 'required|integer|min:0',
+                'existencias' => 'required|integer|min:0',
                 'descripcion' => 'nullable|string',
             ]);
 
@@ -69,74 +76,80 @@ class VentaController extends Controller
             $producto->update($request->all());
 
             DB::commit();
-            return response()->json(['message' => 'Producto actualizado con éxito.', 'producto' => $producto], 200);
+            return response()->json(['mensaje' => 'Producto actualizado con éxito.', 'producto' => $producto], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error updating product: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al actualizar el producto.', 'error' => $e->getMessage()], 500);
+            Log::error('Error al actualizar producto: ' . $e->getMessage());
+            return response()->json(['mensaje' => 'Error al actualizar el producto.', 'error' => $e->getMessage()], 500);
         }
     }
 
-    public function destroyProducto($id)
+    public function eliminarProducto($id)
     {
         try {
             DB::beginTransaction();
             $producto = Producto::findOrFail($id);
             $producto->delete();
             DB::commit();
-            return response()->json(['message' => 'Producto eliminado con éxito.'], 200);
+            return response()->json(['mensaje' => 'Producto eliminado con éxito.'], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error deleting product: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al eliminar el producto.', 'error' => $e->getMessage()], 500);
+            Log::error('Error al eliminar producto: ' . $e->getMessage());
+            return response()->json(['mensaje' => 'Error al eliminar el producto.', 'error' => $e->getMessage()], 500);
         }
     }
 
-    public function storeVenta(Request $request)
+    public function almacenarVenta(Request $request)
     {
         try {
             DB::beginTransaction();
+            // AJUSTE DE VALIDACIÓN: Aceptamos los campos que realmente envía el frontend
             $request->validate([
-                'cliente_id' => 'required|exists:clientes,id',
+                'clienteIdSeleccionado' => 'required|exists:clientes,id',
+                'montoTotal' => 'required|numeric|min:0',
                 'items' => 'required|array',
-                'items.*.producto_id' => 'required|exists:productos,id',
+                'items.*.id' => 'required|exists:productos,id',
                 'items.*.cantidad' => 'required|integer|min:1',
-                'items.*.precio' => 'required|numeric|min:0',
             ]);
-
-            $total = 0;
-            foreach ($request->items as $item) {
-                $total += $item['cantidad'] * $item['precio'];
-            }
 
             $venta = Venta::create([
-                'cliente_id' => $request->cliente_id,
-                'monto_total' => $total,
+                'cliente_id' => $request->clienteIdSeleccionado,
+                'monto_total' => $request->montoTotal,
             ]);
 
             foreach ($request->items as $item) {
+                
+                $producto = Producto::find($item['id']);
+
+                // NUEVA LÓGICA: Verificar stock (existencias) antes de la venta
+                if ($producto->existencias < $item['cantidad']) {
+                    DB::rollBack();
+                    return response()->json(['mensaje' => 'Stock insuficiente para el producto ' . $producto->nombre . '.', 'error' => ['stock' => ['Stock insuficiente.']]], 409);
+                }
+
                 ItemVenta::create([
                     'venta_id' => $venta->id,
-                    'producto_id' => $item['producto_id'],
+                    'producto_id' => $item['id'],
                     'cantidad' => $item['cantidad'],
-                    'precio' => $item['precio'],
+                    // Usar el precio del producto en la DB
+                    'precio' => $producto->precio,
                 ]);
 
-                $producto = Producto::find($item['producto_id']);
-                $producto->stock -= $item['cantidad'];
+                $producto->existencias -= $item['cantidad'];
                 $producto->save();
             }
 
             DB::commit();
-            return response()->json(['message' => 'Venta creada con éxito.', 'venta' => $venta], 201);
+            // CAMBIO: Devolver 'id_venta' para el recibo en el frontend
+            return response()->json(['mensaje' => 'Venta creada con éxito.', 'venta' => $venta, 'id_venta' => $venta->id], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating sale: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al crear la venta.', 'error' => $e->getMessage()], 500);
+            Log::error('Error al crear venta: ' . $e->getMessage());
+            return response()->json(['mensaje' => 'Error al crear la venta.', 'error' => $e->getMessage()], 500);
         }
     }
 
-    public function storeApartado(Request $request)
+    public function almacenarApartado(Request $request)
     {
         try {
             DB::beginTransaction();
@@ -170,15 +183,15 @@ class VentaController extends Controller
             }
 
             DB::commit();
-            return response()->json(['message' => 'Apartado creado con éxito.', 'apartado' => $apartado], 201);
+            return response()->json(['mensaje' => 'Apartado creado con éxito.', 'apartado' => $apartado], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating apartado: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al crear el apartado.', 'error' => $e->getMessage()], 500);
+            Log::error('Error al crear apartado: ' . $e->getMessage());
+            return response()->json(['mensaje' => 'Error al crear el apartado.', 'error' => $e->getMessage()], 500);
         }
     }
 
-    public function getApartados()
+    public function obtenerApartados()
     {
         try {
             $apartados = Apartado::with('cliente')->get()->map(function($apartado) {
@@ -192,8 +205,8 @@ class VentaController extends Controller
             });
             return response()->json(['apartados' => $apartados]);
         } catch (\Exception $e) {
-            Log::error('Error fetching apartados: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al obtener los apartados.'], 500);
+            Log::error('Error al obtener apartados: ' . $e->getMessage());
+            return response()->json(['mensaje' => 'Error al obtener los apartados.'], 500);
         }
     }
 }

@@ -4,20 +4,34 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\User;
 
 class Venta extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'total',
+        'cliente_id',
+        'monto_total',
         'monto_recibido',
         'cambio',
-        'user_id'
+        'user_id',
     ];
 
-    public function user()
+    public function cliente(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    public function articulos(): HasMany
+    {
+        return $this->hasMany(ItemVenta::class, 'venta_id');
+    }
+
+    public function usuario(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'usuario_id');
     }
 }

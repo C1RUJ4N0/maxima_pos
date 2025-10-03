@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Apartado;
-use App\Models\Client;
-use App\Models\ApartadoItem;
-use App\Models\Product;
+use App\Models\Cliente; 
+use App\Models\ItemApartado;
+use App\Models\Producto; 
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -13,48 +14,48 @@ class ApartadoController extends Controller
 {
     public function index()
     {
-        $apartados = Apartado::with('client')->orderBy('due_date')->get();
-        $clients = Client::all();
-        $apartadoItems = ApartadoItem::all();
-        $products = Product::all();
+        $apartados = Apartado::with('cliente')->orderBy('fecha_vencimiento')->get();
+        $clientes = Cliente::all();
+        $articulosApartados = ItemApartado::all();
+        $productos = Producto::all();
 
-        return view('apartados.index', compact('apartados', 'clients', 'apartadoItems', 'products'));
+        return view('apartados.index', compact('apartados', 'clientes', 'articulosApartados', 'productos'));
     }
 
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
-            'client_id' => 'required|exists:clients,id',
-            'total_amount' => 'required|numeric|min:0',
-            'amount_paid' => 'required|numeric|min:0',
-            'due_date' => 'required|date',
-            'items' => 'required|array',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.price' => 'required|numeric|min:0',
+        $datosValidados = $request->validate([
+            'cliente_id' => 'required|exists:clientes,id', 
+            'monto_total' => 'required|numeric|min:0',
+            'monto_pagado' => 'required|numeric|min:0',
+            'fecha_vencimiento' => 'required|date',
+            'articulos' => 'required|array',
+            'articulos.*.producto_id' => 'required|exists:productos,id', 
+            'articulos.*.cantidad' => 'required|integer|min:1',
+            'articulos.*.precio' => 'required|numeric|min:0',
         ]);
 
         DB::beginTransaction();
 
         try {
             $apartado = Apartado::create([
-                'client_id' => $validatedData['client_id'],
-                'total_amount' => $validatedData['total_amount'],
-                'amount_paid' => $validatedData['amount_paid'],
-                'due_date' => $validatedData['due_date'],
-                'status' => 'vigente',
+                'cliente_id' => $datosValidados['cliente_id'],
+                'monto_total' => $datosValidados['monto_total'],
+                'monto_pagado' => $datosValidados['monto_pagado'],
+                'fecha_vencimiento' => $datosValidados['fecha_vencimiento'],
+                'estado' => 'vigente',
             ]);
 
-            foreach ($validatedData['items'] as $item) {
-                ApartadoItem::create([
+            foreach ($datosValidados['articulos'] as $articulo) {
+                ItemApartado::create([
                     'apartado_id' => $apartado->id,
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'price' => $item['price'],
+                    'producto_id' => $articulo['producto_id'], 
+                    'cantidad' => $articulo['cantidad'],
+                    'precio' => $articulo['precio'],
                 ]);
 
-                $producto = Product::find($item['product_id']);
-                $producto->stock -= $item['quantity'];
+                $producto = Producto::find($articulo['producto_id']);
+                $producto->existencias -= $articulo['cantidad'];
                 $producto->save();
             }
 

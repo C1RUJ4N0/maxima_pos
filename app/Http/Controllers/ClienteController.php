@@ -2,27 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Client;
+use App\Models\Cliente;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-class ClientController extends Controller
+class ClienteController extends Controller
 {
     public function index()
     {
-        $clients = Client::all();
-        return view('clients', compact('clients'));
+        $clientes = Cliente::all();
+        return view('clientes', compact('clientes'));
     }
 
-    public function store(Request $request)
+    public function almacenar(Request $request)
     {
-        $validatedData = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone_number' => 'nullable|string|max:255',
+        $datosValidados = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'numero_telefono' => 'nullable|string|max:255',
         ]);
 
         try {
-            Client::create($validatedData);
+            Cliente::create($datosValidados);
             return response()->json(['success' => true, 'message' => 'Cliente creado con éxito.']);
         } catch (\Exception $e) {
             Log::error('Error al crear el cliente: ' . $e->getMessage());
@@ -30,15 +30,15 @@ class ClientController extends Controller
         }
     }
 
-    public function update(Request $request, Client $client)
+    public function actualizar(Request $request, Cliente $cliente)
     {
-        $validatedData = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone_number' => 'nullable|string|max:255',
+        $datosValidados = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'numero_telefono' => 'nullable|string|max:255',
         ]);
 
         try {
-            $client->update($validatedData);
+            $cliente->update($datosValidados);
             return response()->json(['success' => true, 'message' => 'Cliente actualizado con éxito.']);
         } catch (\Exception $e) {
             Log::error('Error al actualizar el cliente: ' . $e->getMessage());
@@ -46,10 +46,10 @@ class ClientController extends Controller
         }
     }
 
-    public function destroy(Client $client)
+    public function eliminar(Cliente $cliente)
     {
         try {
-            $client->delete();
+            $cliente->delete();
             return response()->json(['success' => true, 'message' => 'Cliente eliminado con éxito.']);
         } catch (\Exception $e) {
             Log::error('Error al eliminar el cliente: ' . $e->getMessage());

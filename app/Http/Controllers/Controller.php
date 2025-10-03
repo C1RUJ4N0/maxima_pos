@@ -1,36 +1,13 @@
 <?php
 
 namespace App\Http\Controllers;
-use Illuminate\Http\Request;
 
-abstract class Controller
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Foundation\Validation\ValidatesRequests;
+use Illuminate\Routing\Controller as BaseController;
+
+// La clase base DEBE llamarse 'Controller'
+abstract class Controller extends BaseController 
 {
-    //
-}
-
-namespace App\Http\Controllers;
-
-
-
-class ViewController extends Controller
-{
-    public function showStatistics()
-    {
-        return view('statistics');
-    }
-
-    public function showInventory()
-    {
-        return view('inventory');
-    }
-
-    public function showProviders()
-    {
-        return view('providers');
-    }
-
-    public function showApartados()
-    {
-        return view('apartados');
-    }
+    use AuthorizesRequests, ValidatesRequests;
 }
